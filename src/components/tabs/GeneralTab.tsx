@@ -62,14 +62,9 @@ export function GeneralTab() {
     try {
       setLoading(true)
       
-      // Force reload fresh data from storage (don't use cached data)
-      try {
-        await workerDataService.loadFromLocalStorage()
-        console.log('✅ Fresh data loaded for GeneralTab')
-      } catch (error) {
-        console.log('⚠️ Loading from localStorage failed, trying file system...')
-        await workerDataService.loadFromFileSystem()
-      }
+      // Force reload fresh data from storage (Supabase first for team collaboration)
+      await ensureWorkerDataLoaded()
+      console.log('✅ Fresh data loaded for GeneralTab')
 
       // Get KPIs from worker data service
       const workerKPIs = workerDataService.getGeneralKPIs()

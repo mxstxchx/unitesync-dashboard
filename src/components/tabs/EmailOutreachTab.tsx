@@ -59,11 +59,7 @@ export function EmailOutreachTab() {
       setLoading(true)
       
       // Force reload fresh data from storage (don't use cached data)
-      try {
-        await workerDataService.loadFromLocalStorage()
-      } catch (error) {
-        await workerDataService.loadFromFileSystem()
-      }
+      await ensureWorkerDataLoaded()
 
       // Get Email Outreach KPIs from worker data service
       const workerKPIs = workerDataService.getEmailOutreachKPIs()
