@@ -198,20 +198,30 @@ export class WorkerDataService {
       }
       
       if (!reportData.data_sources_summary) {
-        console.warn('⚠️ Attribution report missing data_sources_summary, initializing with defaults');
-        reportData.data_sources_summary = {
-          contacts: 0,
-          v1_contact_stats: 0,
-          v2_contact_stats: 0,
-          v3_contact_stats: 0,
-          v3_subsequence_stats: 0,
-          clients: 0,
-          audits: 0,
-          convrt_leads: 0,
-          convrt_audit_status: 0,
-          convrt_report_status: 0,
-          referral_sources: 0
-        };
+        console.error('❌ Attribution report missing data_sources_summary - this indicates a data loading problem');
+        console.log('🔍 Available report keys:', Object.keys(reportData));
+        console.log('🔍 additional_data keys:', reportData.additional_data ? Object.keys(reportData.additional_data) : 'additional_data is missing');
+        
+        // Try to recover from additional_data if available
+        if (reportData.additional_data?.data_sources_summary) {
+          console.log('🔧 Recovering data_sources_summary from additional_data');
+          reportData.data_sources_summary = reportData.additional_data.data_sources_summary;
+        } else {
+          console.warn('⚠️ Cannot recover data_sources_summary, initializing with defaults');
+          reportData.data_sources_summary = {
+            contacts: 0,
+            v1_contact_stats: 0,
+            v2_contact_stats: 0,
+            v3_contact_stats: 0,
+            v3_subsequence_stats: 0,
+            clients: 0,
+            audits: 0,
+            convrt_leads: 0,
+            convrt_audit_status: 0,
+            convrt_report_status: 0,
+            referral_sources: 0
+          };
+        }
       }
       
       this.attributionReport = reportData;
