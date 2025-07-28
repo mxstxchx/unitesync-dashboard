@@ -1,25 +1,73 @@
 // Invitation-First Attribution Worker - Correct Implementation
 // Implements invitation-code-first attribution with timing validation
 
-// Import Supabase for data persistence
-importScripts('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js');
-
-// Global Supabase client (will be initialized when config is received)
+// Import Supabase for data persistence (with robust error handling)
+let supabase = null;
 let supabaseClient = null;
+let supabaseAvailable = false;
+
+try {
+  // Try multiple CDN sources for better reliability
+  const cdnSources = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
+    'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'
+  ];
+  
+  let loaded = false;
+  for (const cdnUrl of cdnSources) {
+    try {
+      importScripts(cdnUrl);
+      supabase = self.supabase;
+      if (supabase && typeof supabase.createClient === 'function') {
+        console.log('✅ Supabase library loaded successfully from:', cdnUrl);
+        supabaseAvailable = true;
+        loaded = true;
+        break;
+      }
+    } catch (cdnError) {
+      console.warn(`⚠️ Failed to load from ${cdnUrl}:`, cdnError.message);
+    }
+  }
+  
+  if (!loaded) {
+    throw new Error('All CDN sources failed');
+  }
+} catch (error) {
+  console.warn('⚠️ Failed to load Supabase library in worker:', error.message);
+  console.log('ℹ️ Worker will continue without Supabase functionality - attribution results will only be saved locally');
+  supabaseAvailable = false;
+}
 
 // Supabase data persistence functions
 const SupabaseUtils = {
   // Initialize Supabase client with provided config
   initializeClient(config) {
-    if (!config.url || !config.anonKey) {
-      throw new Error('Supabase URL and anon key are required');
+    if (!supabaseAvailable) {
+      console.warn('⚠️ Supabase library not available, skipping client initialization');
+      return false;
     }
-    supabaseClient = supabase.createClient(config.url, config.anonKey);
-    console.log('✅ Supabase client initialized in worker');
+    
+    if (!config.url || !config.anonKey) {
+      console.error('❌ Supabase URL and anon key are required');
+      return false;
+    }
+    
+    try {
+      supabaseClient = supabase.createClient(config.url, config.anonKey);
+      console.log('✅ Supabase client initialized in worker');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to initialize Supabase client:', error.message);
+      return false;
+    }
   },
 
   // Save attribution report to Supabase
   async saveAttributionReport(reportData) {
+    if (!supabaseAvailable) {
+      throw new Error('Supabase library not available');
+    }
+    
     if (!supabaseClient) {
       throw new Error('Supabase client not initialized');
     }
@@ -3107,10 +3155,15 @@ self.onmessage = async function(e) {
     // Initialize Supabase if config is provided
     if (supabaseConfig) {
       try {
-        SupabaseUtils.initializeClient(supabaseConfig);
+        const initSuccess = SupabaseUtils.initializeClient(supabaseConfig);
+        if (!initSuccess) {
+          console.warn('⚠️ Supabase initialization returned false - will continue without database saving');
+        }
       } catch (supabaseError) {
         console.warn('⚠️ Failed to initialize Supabase in worker:', supabaseError.message);
       }
+    } else {
+      console.log('ℹ️ No Supabase config provided - worker will save locally only');
     }
 
     switch (type) {
