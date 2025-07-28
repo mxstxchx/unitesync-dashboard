@@ -67,6 +67,22 @@ class SupabaseDataService {
         total_clients: reportRecord.total_clients
       });
 
+      // Fetch the detailed client attribution data
+      console.log('📡 Fetching client attributions for report:', reportRecord.id);
+      const clientAttributions = await this.getClientAttributions(reportRecord.id);
+      
+      // Transform client attributions back to the expected format
+      const attributed_clients_data = clientAttributions.map(client => ({
+        email: client.client_email,
+        pipeline: client.pipeline,
+        confidence_score: client.confidence_score,
+        attribution_details: client.attribution_details || {},
+        revenue_amount: client.revenue_amount,
+        signup_date: client.signup_date
+      }));
+
+      console.log('✅ Fetched', attributed_clients_data.length, 'client attributions from Supabase');
+
       // Transform the database record back to the expected AttributionReport format
       const attributionReport = {
         processing_date: reportRecord.processing_date,
@@ -79,7 +95,7 @@ class SupabaseDataService {
         sequence_variants_summary: reportRecord.additional_data?.sequence_variants_summary,
         conversion_timing_analysis: reportRecord.additional_data?.conversion_timing_analysis,
         data_sources_summary: reportRecord.additional_data?.data_sources_summary,
-        attributed_clients_data: [] // This would need to be fetched separately if needed
+        attributed_clients_data: attributed_clients_data
       };
 
       return attributionReport;
