@@ -213,11 +213,12 @@ export default function SourceBasedUpload({ onComplete }: SourceBasedUploadProps
           attribution_rate: parseFloat(attributionData.attribution_rate || '0') / 100,
           attribution_breakdown: attributionData.attribution_breakdown || {},
           revenue_breakdown: attributionData.revenue_breakdown || {},
-          additional_data: attributionData.additional_data || {
+          additional_data: {
+            ...attributionData.additional_data || {},
             methodology: attributionData.methodology,
             sequence_variants_summary: attributionData.sequence_variants_summary,
             conversion_timing_analysis: attributionData.conversion_timing_analysis,
-            data_sources_summary: attributionData.data_sources_summary
+            data_sources_summary: attributionData.data_sources_summary // Include top-level data_sources_summary in additional_data
           }
         })
         .select()
