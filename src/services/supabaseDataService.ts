@@ -21,11 +21,13 @@ export interface ClientAttributionRecord {
   id: string;
   report_id: string;
   client_email: string;
-  pipeline: string;
-  confidence_score: number;
+  status: string;
+  revenue: string;
+  attribution_source: string;
+  attribution_method: string;
+  attribution_confidence: string;
   attribution_details: any;
-  revenue_amount: number;
-  signup_date: string;
+  created_at: string;
 }
 
 export interface DataSourceSummaryRecord {
@@ -74,11 +76,13 @@ class SupabaseDataService {
       // Transform client attributions back to the expected format
       const attributed_clients_data = clientAttributions.map(client => ({
         email: client.client_email,
-        pipeline: client.pipeline,
-        confidence_score: client.confidence_score,
+        pipeline: client.attribution_source, // Maps to attribution_source
+        confidence_score: parseFloat(client.attribution_confidence || '0'), // Maps to attribution_confidence
         attribution_details: client.attribution_details || {},
-        revenue_amount: client.revenue_amount,
-        signup_date: client.signup_date
+        revenue_amount: parseFloat(client.revenue || '0'), // Maps to revenue
+        signup_date: client.created_at, // Use created_at as signup_date
+        status: client.status, // Include status
+        attribution_method: client.attribution_method // Include attribution method
       }));
 
       console.log('✅ Fetched', attributed_clients_data.length, 'client attributions from Supabase');
@@ -169,7 +173,7 @@ class SupabaseDataService {
         .from('client_attributions')
         .select('*')
         .eq('report_id', reportId)
-        .order('confidence_score', { ascending: false });
+        .order('attribution_confidence', { ascending: false });
 
       if (error) {
         throw new Error(`Failed to fetch client attributions: ${error.message}`);
