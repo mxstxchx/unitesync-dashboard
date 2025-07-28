@@ -181,6 +181,11 @@ export class WorkerDataService {
    */
   async loadAttributionReport(reportData?: AttributionReport): Promise<void> {
     if (reportData) {
+      console.log('📊 Loading attribution report into WorkerDataService');
+      console.log('🔍 INCOMING data_sources_summary:', reportData.data_sources_summary);
+      console.log('🔍 INCOMING additional_data keys:', reportData.additional_data ? Object.keys(reportData.additional_data) : 'No additional_data');
+      console.log('🔍 INCOMING additional_data.data_sources_summary:', reportData.additional_data?.data_sources_summary);
+      
       // Validate report structure
       if (!reportData.attributed_clients_data || !Array.isArray(reportData.attributed_clients_data)) {
         console.warn('⚠️ Attribution report missing attributed_clients_data array, initializing empty array');
@@ -228,6 +233,8 @@ export class WorkerDataService {
       console.log('✅ Attribution report loaded into WorkerDataService');
       console.log(`📊 Report contains ${reportData.total_clients} total clients, ${reportData.attributed_clients} attributed`);
       console.log(`📊 Client data array length: ${reportData.attributed_clients_data.length}`);
+      console.log('🔍 FINAL data_sources_summary after loading:', reportData.data_sources_summary);
+      console.log('🔍 FINAL additional_data.data_sources_summary:', reportData.additional_data?.data_sources_summary);
     } else {
       // In a real implementation, this might fetch from localStorage, IndexedDB, or API
       // For now, we'll expect the report to be provided
@@ -316,10 +323,13 @@ export class WorkerDataService {
    */
   async loadFromSupabase(): Promise<void> {
     try {
+      console.log('📡 Loading attribution report from Supabase...');
       const reportData = await supabaseDataService.getLatestReport();
       if (!reportData) {
         throw new Error('No attribution reports found in Supabase');
       }
+      console.log('🔍 DATA FROM SUPABASE - keys:', Object.keys(reportData));
+      console.log('🔍 DATA FROM SUPABASE - data_sources_summary:', reportData.data_sources_summary);
       await this.loadAttributionReport(reportData);
       console.log('✅ Attribution report loaded from Supabase');
     } catch (error) {
