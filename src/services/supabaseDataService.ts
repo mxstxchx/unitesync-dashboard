@@ -8,11 +8,13 @@ import { supabase } from '../lib/supabase';
 
 export interface AttributionReportRecord {
   id: string;
-  report_data: any;
-  generated_at: string;
+  processing_date: string;
   total_clients: number;
   attributed_clients: number;
   attribution_rate: number;
+  attribution_breakdown: any;
+  revenue_breakdown: any;
+  additional_data: any;
 }
 
 export interface ClientAttributionRecord {
@@ -46,7 +48,7 @@ class SupabaseDataService {
       const { data: reportRecord, error } = await supabase
         .from('attribution_reports')
         .select('*')
-        .order('generated_at', { ascending: false })
+        .order('processing_date', { ascending: false })
         .limit(1)
         .single();
 
@@ -61,11 +63,26 @@ class SupabaseDataService {
 
       console.log('✅ Latest report fetched from Supabase:', {
         id: reportRecord.id,
-        generated_at: reportRecord.generated_at,
+        processing_date: reportRecord.processing_date,
         total_clients: reportRecord.total_clients
       });
 
-      return reportRecord.report_data;
+      // Transform the database record back to the expected AttributionReport format
+      const attributionReport = {
+        processing_date: reportRecord.processing_date,
+        total_clients: reportRecord.total_clients,
+        attributed_clients: reportRecord.attributed_clients,
+        attribution_rate: (reportRecord.attribution_rate * 100).toFixed(1) + '%',
+        attribution_breakdown: reportRecord.attribution_breakdown || {},
+        revenue_breakdown: reportRecord.revenue_breakdown || {},
+        methodology: reportRecord.additional_data?.methodology || [],
+        sequence_variants_summary: reportRecord.additional_data?.sequence_variants_summary,
+        conversion_timing_analysis: reportRecord.additional_data?.conversion_timing_analysis,
+        data_sources_summary: reportRecord.additional_data?.data_sources_summary,
+        attributed_clients_data: [] // This would need to be fetched separately if needed
+      };
+
+      return attributionReport;
     } catch (error) {
       console.error('❌ Error fetching latest report from Supabase:', error);
       throw error;
@@ -81,8 +98,8 @@ class SupabaseDataService {
       
       const { data, error } = await supabase
         .from('attribution_reports')
-        .select('id, generated_at, total_clients, attributed_clients, attribution_rate')
-        .order('generated_at', { ascending: false });
+        .select('id, processing_date, total_clients, attributed_clients, attribution_rate')
+        .order('processing_date', { ascending: false });
 
       if (error) {
         throw new Error(`Failed to fetch reports: ${error.message}`);
