@@ -27,6 +27,7 @@ export interface ClientAttributionRecord {
   attribution_method: string;
   attribution_confidence: string;
   attribution_details: any;
+  client_signup_date: string; // Original client signup date in DD/MM/YYYY format
   created_at: string;
 }
 
@@ -75,11 +76,14 @@ class SupabaseDataService {
       
       // Transform client attributions back to the expected format (must match AttributedClient interface)
       const attributed_clients_data = clientAttributions.map(client => {
-        // Extract the actual contact/signup date from attribution_details for time series analysis
-        const actualSignupDate = client.attribution_details?.contacted_date || 
+        // Use the proper client_signup_date column (original DD/MM/YYYY date from worker)
+        // Fall back to attribution_details for backward compatibility with old records
+        const actualSignupDate = client.client_signup_date ||
+                                client.attribution_details?.client_signup_date ||
+                                client.attribution_details?.contacted_date || 
                                 client.attribution_details?.match_data?.stat?.Contacted_date ||
                                 client.attribution_details?.match_data?.stat?.Replied_date ||
-                                client.created_at; // Fallback to database created_at
+                                client.created_at; // Final fallback to database created_at
 
         return {
           email: client.client_email,

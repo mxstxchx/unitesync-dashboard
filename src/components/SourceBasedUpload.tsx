@@ -239,7 +239,8 @@ export default function SourceBasedUpload({ onComplete }: SourceBasedUploadProps
           attribution_source: client.attribution_source,
           attribution_method: client.attribution_method,
           attribution_confidence: client.attribution_confidence || 0,
-          attribution_details: client.attribution_details || {}
+          attribution_details: client.attribution_details || {},
+          client_signup_date: client.created_at // Preserve original client signup date (DD/MM/YYYY format)
         }));
 
         const { error: clientsError } = await supabase
