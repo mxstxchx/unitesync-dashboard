@@ -132,6 +132,7 @@ class SupabaseDataService {
         sequence_variants_summary: reportRecord.additional_data?.sequence_variants_summary,
         conversion_timing_analysis: reportRecord.additional_data?.conversion_timing_analysis,
         data_sources_summary: reportRecord.additional_data?.data_sources_summary,
+        additional_data: reportRecord.additional_data || {}, // Include full additional_data for manual_emails and other analytics
         attributed_clients_data: attributed_clients_data
       };
 
