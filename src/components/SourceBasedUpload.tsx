@@ -199,42 +199,80 @@ export default function SourceBasedUpload({ onComplete }: SourceBasedUploadProps
   const [api] = useState(new SalesforgeAPI());
 
   // Save attribution results to Supabase
-  const saveToSupabase = async (attributionData: any) => {
+  const saveToSupabase = async (attributionData: any, worker: Worker) => {
     try {
       console.log('💾 Saving attribution report to Supabase...');
       
-      // Create a simplified report structure matching our Supabase schema
-      const reportForSupabase = {
-        ...attributionData,
-        summary: {
-          total_clients: attributionData.total_clients || 0,
-          attributed_clients: attributionData.attributed_clients || 0,
-          attribution_rate: parseFloat(attributionData.attribution_rate || '0') / 100
-        }
-      };
-
-      // Use the existing supabaseDataService's save method
-      // Note: We need to create a saveAttributionReport method if it doesn't exist
-      console.log('📤 Calling Supabase service to save report...');
-      
-      // For now, we'll use a direct approach until we can create the proper service method
-      const { data, error } = await supabase
+      // Insert main attribution report with correct column names
+      const { data: reportRecord, error: reportError } = await supabase
         .from('attribution_reports')
         .insert({
-          report_data: reportForSupabase,
-          generated_at: new Date().toISOString(),
+          processing_date: new Date().toISOString(),
           total_clients: attributionData.total_clients || 0,
           attributed_clients: attributionData.attributed_clients || 0,
-          attribution_rate: parseFloat(attributionData.attribution_rate || '0') / 100
+          attribution_rate: parseFloat(attributionData.attribution_rate || '0') / 100,
+          attribution_breakdown: attributionData.attribution_breakdown || {},
+          revenue_breakdown: attributionData.revenue_breakdown || {},
+          additional_data: {
+            methodology: attributionData.methodology,
+            sequence_variants_summary: attributionData.sequence_variants_summary,
+            conversion_timing_analysis: attributionData.conversion_timing_analysis,
+            data_sources_summary: attributionData.data_sources_summary
+          }
         })
         .select()
         .single();
 
-      if (error) {
-        throw error;
+      if (reportError) {
+        throw reportError;
       }
 
-      console.log('✅ Attribution report saved to Supabase with ID:', data.id);
+      console.log('✅ Attribution report saved to Supabase with ID:', reportRecord.id);
+
+      // Save individual client attributions if available
+      if (attributionData.attributed_clients_data && attributionData.attributed_clients_data.length > 0) {
+        const clientRecords = attributionData.attributed_clients_data.map((client: any) => ({
+          report_id: reportRecord.id,
+          client_email: client.email,
+          status: client.status || 'attributed',
+          revenue: parseFloat(client.revenue || '0'),
+          attribution_source: client.attribution_source,
+          attribution_method: client.attribution_method,
+          attribution_confidence: client.attribution_confidence || 0,
+          attribution_details: client.attribution_details || {}
+        }));
+
+        const { error: clientsError } = await supabase
+          .from('client_attributions')
+          .insert(clientRecords);
+
+        if (clientsError) {
+          console.error('❌ Failed to save client attributions:', clientsError.message);
+        } else {
+          console.log('✅ Saved', clientRecords.length, 'client attributions');
+        }
+      }
+
+      // Save data source summaries if available
+      if (attributionData.data_sources_summary) {
+        const sourceRecords = Object.entries(attributionData.data_sources_summary).map(([source, count]) => ({
+          report_id: reportRecord.id,
+          source_type: source,
+          total_records: typeof count === 'number' ? count : 0,
+          summary_data: { source, count }
+        }));
+
+        const { error: sourcesError } = await supabase
+          .from('data_source_summaries')
+          .insert(sourceRecords);
+
+        if (sourcesError) {
+          console.error('❌ Failed to save data source summaries:', sourcesError.message);
+        } else {
+          console.log('✅ Saved', sourceRecords.length, 'data source summaries');
+        }
+      }
+
       setProgressMessage('Successfully saved to Supabase!');
       
     } catch (error) {
@@ -497,7 +535,7 @@ export default function SourceBasedUpload({ onComplete }: SourceBasedUploadProps
           console.log('🎉 ATTRIBUTION REPORT GENERATED:', event.data.data);
           
           // Save to Supabase
-          saveToSupabase(event.data.data);
+          saveToSupabase(event.data.data, worker);
         } else if (event.data.type === 'ERROR') {
           clearTimeout(workerTimeout);
           console.error('Worker error:', event.data.data);
