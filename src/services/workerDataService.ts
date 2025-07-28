@@ -453,6 +453,14 @@ export class WorkerDataService {
     const avgDealAmount = activeClientsCount > 0 ? totalRevenue / activeClientsCount : 0;
     const totalContacts = report.data_sources_summary?.contacts || 0;
     
+    console.log('🔍 DEBUG General KPIs:', {
+      totalContacts,
+      totalClientsCount,
+      attributedClientsCount,
+      activeClientsCount,
+      hasDataSourcesSummary: !!report.data_sources_summary
+    });
+    
     // Calculate three conversion rate perspectives
     const totalConversionRate = totalContacts > 0 ? (totalClientsCount / totalContacts) * 100 : 0;
     const attributedConversionRate = totalContacts > 0 ? (attributedClientsCount / totalContacts) * 100 : 0;
@@ -499,8 +507,30 @@ export class WorkerDataService {
 
     // Calculate email statistics based on contact stats
     const dataSummary = this.attributionReport.data_sources_summary;
-    const totalEmailContacts = dataSummary.v1_contact_stats + dataSummary.v2_contact_stats + 
-                              dataSummary.v3_contact_stats + dataSummary.v3_subsequence_stats;
+    console.log('🔍 DEBUG Email KPIs - dataSummary:', dataSummary);
+    
+    if (!dataSummary) {
+      console.error('❌ data_sources_summary is missing from attribution report');
+      console.log('📋 Available report keys:', Object.keys(this.attributionReport));
+      return {
+        totalEmailClients: emailClients.length,
+        oldMethodClients,
+        newMethodClients,
+        totalEmailContacts: 0,
+        totalEmailsSent: 0,
+        totalReplies: 0,
+        replyRate: 0,
+        clientConversionRate: 0,
+        avgEmailsPerClient: 0,
+        manualEmails: 0,
+        avgDaysToClose: 0,
+        oldMethodAvgDaysToClose: 0,
+        newMethodAvgDaysToClose: 0
+      };
+    }
+    
+    const totalEmailContacts = (dataSummary.v1_contact_stats || 0) + (dataSummary.v2_contact_stats || 0) + 
+                              (dataSummary.v3_contact_stats || 0) + (dataSummary.v3_subsequence_stats || 0);
     
     // Estimate emails sent (assuming average 3-5 emails per contact)
     const totalEmailsSent = totalEmailContacts * 4; // Average assumption
@@ -776,6 +806,13 @@ export class WorkerDataService {
     }, 0);
 
     const totalAuditRequests = this.attributionReport.data_sources_summary?.audits || 0;
+    
+    console.log('🔍 DEBUG Inbound Audits KPIs:', {
+      totalAuditRequests,
+      hasDataSourcesSummary: !!this.attributionReport.data_sources_summary,
+      dataSummary: this.attributionReport.data_sources_summary
+    });
+    
     const inboundConversionRate = totalAuditRequests > 0 ? 
       (totalInboundClients / totalAuditRequests) * 100 : 0;
     
