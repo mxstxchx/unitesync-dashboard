@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production
+/build
+/dist
+
+# Next.js
+/.next/
+/out/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+*.swp
+*.swo
+
+# IDE
+.vscode
+.idea
+
+# Testing
+coverage/
+
+# ⚠️ SENSITIVE BUSINESS DATA - NEVER COMMIT ⚠️
+# Attribution reports contain client emails, revenue data, business intelligence
+attribution_reports/
+data/
+*.json
+
+# Temporary exception for config files (allow specific JSON configs)
+!package.json
+!package-lock.json
+!tsconfig.json

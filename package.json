@@ -1,0 +1,35 @@
+{
+  "name": "unitesync-dashboard-v3",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.5",
+    "@types/lodash": "^4.17.20",
+    "@types/papaparse": "^5.3.16",
+    "date-fns": "^4.1.0",
+    "lodash": "^4.17.21",
+    "next": "15.4.1",
+    "papaparse": "^5.5.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^14.3.8",
+    "recharts": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.14",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "15.4.1",
+    "postcss": "^8.4.24",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.0.0"
+  }
+}
