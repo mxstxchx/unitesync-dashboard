@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /
+
+# UniteSync Sales Dashboard - Private Application
+# This application contains confidential business data
+# and is not intended for public access or indexing.
