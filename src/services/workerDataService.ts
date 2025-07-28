@@ -1086,9 +1086,17 @@ export class WorkerDataService {
 
     const allClients = this.attributionReport.attributed_clients_data || [];
     
-    // Helper function to parse DD/MM/YYYY format
+    // Helper function to parse both DD/MM/YYYY and ISO 8601 formats
     const parseClientDate = (dateStr: string): Date | null => {
       if (!dateStr) return null;
+      
+      // Try ISO 8601 format first (2025-01-22T10:31:43.507Z)
+      if (dateStr.includes('T') || dateStr.includes('-')) {
+        const date = new Date(dateStr);
+        return isNaN(date.getTime()) ? null : date;
+      }
+      
+      // Fall back to DD/MM/YYYY format
       const [day, month, year] = dateStr.split('/').map(Number);
       if (!day || !month || !year) return null;
       return new Date(year, month - 1, day); // month is 0-indexed
@@ -1231,9 +1239,17 @@ export class WorkerDataService {
       };
     }
 
-    // Helper function to parse DD/MM/YYYY format
+    // Helper function to parse both DD/MM/YYYY and ISO 8601 formats
     const parseClientDate = (dateStr: string): Date | null => {
       if (!dateStr) return null;
+      
+      // Try ISO 8601 format first (2025-01-22T10:31:43.507Z)
+      if (dateStr.includes('T') || dateStr.includes('-')) {
+        const date = new Date(dateStr);
+        return isNaN(date.getTime()) ? null : date;
+      }
+      
+      // Fall back to DD/MM/YYYY format
       const [day, month, year] = dateStr.split('/').map(Number);
       if (!day || !month || !year) return null;
       return new Date(year, month - 1, day); // month is 0-indexed
