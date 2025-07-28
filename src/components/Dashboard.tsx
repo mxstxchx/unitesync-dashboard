@@ -66,16 +66,9 @@ const Dashboard: React.FC<DashboardProps> = () => {
       setProgress({ message: 'Starting attribution analysis...', progress: 0 });
       
       if (workerRef.current) {
-        // Get Supabase configuration from environment
-        const supabaseConfig = {
-          url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-          anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        };
-
         workerRef.current.postMessage({
           type: 'PROCESS_ATTRIBUTION',
-          data: data,
-          supabaseConfig: supabaseConfig
+          data: data
         });
       }
       

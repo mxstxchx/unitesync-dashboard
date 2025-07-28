@@ -4,6 +4,7 @@ import Papa from 'papaparse';
 import { SalesforgeAPI } from '@/lib/salesforgeApi';
 import { supabase } from '@/lib/supabase';
 import { workerDataService } from '@/services/workerDataService';
+import { supabaseDataService } from '@/services/supabaseDataService';
 
 interface SourceBasedUploadProps {
   onComplete: (data: any) => void;
@@ -197,6 +198,114 @@ export default function SourceBasedUpload({ onComplete }: SourceBasedUploadProps
   const [progressMessage, setProgressMessage] = useState('');
   const [api] = useState(new SalesforgeAPI());
 
+  // Save attribution results to Supabase
+  const saveToSupabase = async (attributionData: any) => {
+    try {
+      console.log('💾 Saving attribution report to Supabase...');
+      
+      // Create a simplified report structure matching our Supabase schema
+      const reportForSupabase = {
+        ...attributionData,
+        summary: {
+          total_clients: attributionData.total_clients || 0,
+          attributed_clients: attributionData.attributed_clients || 0,
+          attribution_rate: parseFloat(attributionData.attribution_rate || '0') / 100
+        }
+      };
+
+      // Use the existing supabaseDataService's save method
+      // Note: We need to create a saveAttributionReport method if it doesn't exist
+      console.log('📤 Calling Supabase service to save report...');
+      
+      // For now, we'll use a direct approach until we can create the proper service method
+      const { data, error } = await supabase
+        .from('attribution_reports')
+        .insert({
+          report_data: reportForSupabase,
+          generated_at: new Date().toISOString(),
+          total_clients: attributionData.total_clients || 0,
+          attributed_clients: attributionData.attributed_clients || 0,
+          attribution_rate: parseFloat(attributionData.attribution_rate || '0') / 100
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ Attribution report saved to Supabase with ID:', data.id);
+      setProgressMessage('Successfully saved to Supabase!');
+      
+    } catch (error) {
+      console.error('❌ Failed to save to Supabase:', error);
+      setProgressMessage('Supabase save failed, continuing with local save...');
+    } finally {
+      // Complete the process regardless of Supabase success/failure
+      setTimeout(() => {
+        setProgress(100);
+        setProgressMessage('Attribution processing complete!');
+        setIsProcessing(false);
+        worker.terminate();
+        
+        // Continue with the rest of the original completion logic
+        finishProcessing(attributionData);
+      }, 1000);
+    }
+  };
+
+  // Complete the processing workflow
+  const finishProcessing = (attributionData: any) => {
+    console.log('📊 Attribution Rate:', attributionData.attribution_rate);
+    console.log('📈 Attribution Breakdown:', attributionData.attribution_breakdown);
+    console.log('💰 Revenue Breakdown:', attributionData.revenue_breakdown);
+    console.log('👥 Total Clients:', attributionData.total_clients);
+    console.log('✅ Attributed Clients:', attributionData.attributed_clients);
+    
+    // Enhanced logging for new features
+    if (attributionData.sequence_variants_summary) {
+      console.log('🔬 SEQUENCE VARIANTS SUMMARY:', attributionData.sequence_variants_summary);
+    }
+    
+    // Show console notice
+    console.log('\n🚀 ENHANCED FEATURES ACTIVE:');
+    console.log('   • Enhanced thread fetching for Email Outreach - New Method');
+    console.log('   • Variant analysis using established methodology');
+    console.log('   • Sequence variants summary for database population');
+    console.log('   • Complete referential integrity with database schema');
+    console.log('\n📖 Check the console output above for detailed debug information');
+    
+    // Save results to WorkerDataService for dashboard auto-refresh
+    try {
+      console.log('💾 Saving attribution results to WorkerDataService...');
+      console.log('🔍 Data structure check before saving:', {
+        hasAttributedClientsData: !!attributionData.attributed_clients_data,
+        attributedClientsCount: attributionData.attributed_clients_data?.length || 0,
+        hasAttributionBreakdown: !!attributionData.attribution_breakdown,
+        hasRevenueBreakdown: !!attributionData.revenue_breakdown,
+        hasDataSourcesSummary: !!attributionData.data_sources_summary,
+        totalClients: attributionData.total_clients,
+        attributedClients: attributionData.attributed_clients
+      });
+      
+      workerDataService.saveToLocalStorage(attributionData);
+      console.log('✅ Attribution results saved successfully - dashboard will auto-refresh');
+    } catch (error) {
+      console.error('❌ Failed to save attribution results to WorkerDataService:', error);
+    }
+    
+    // Complete the upload process
+    onComplete({
+      attributionResults: attributionData,
+      processedData: sources.reduce((acc, source) => {
+        if (source.data) {
+          acc[source.id] = source.data;
+        }
+        return acc;
+      }, {} as any)
+    });
+  };
+
   const updateSource = useCallback((id: string, updates: Partial<DataSource>) => {
     setSources(prev => prev.map(source => 
       source.id === id ? { ...source, ...updates } : source
@@ -373,71 +482,22 @@ export default function SourceBasedUpload({ onComplete }: SourceBasedUploadProps
         setIsProcessing(false);
       }, 900000); // 15 minutes timeout for sequential processing with delays
       
-      // Get Supabase configuration from environment
-      const supabaseConfig = {
-        url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      };
-
       worker.postMessage({
         type: 'PROCESS_ATTRIBUTION',
-        data: compiledData,
-        supabaseConfig: supabaseConfig
+        data: compiledData
       });
 
       worker.onmessage = (event) => {
         console.log('Worker message received:', event.data);
         if (event.data.type === 'ATTRIBUTION_COMPLETE') {
           clearTimeout(workerTimeout);
-          setProgress(100);
-          setProgressMessage('Attribution processing complete!');
-          setIsProcessing(false);
-          worker.terminate();
+          setProgress(95);
+          setProgressMessage('Saving to Supabase...');
           
           console.log('🎉 ATTRIBUTION REPORT GENERATED:', event.data.data);
-          console.log('📊 Attribution Rate:', event.data.data.attribution_rate);
-          console.log('📈 Attribution Breakdown:', event.data.data.attribution_breakdown);
-          console.log('💰 Revenue Breakdown:', event.data.data.revenue_breakdown);
-          console.log('👥 Total Clients:', event.data.data.total_clients);
-          console.log('✅ Attributed Clients:', event.data.data.attributed_clients);
           
-          // Enhanced logging for new features
-          if (event.data.data.sequence_variants_summary) {
-            console.log('🔬 SEQUENCE VARIANTS SUMMARY:', event.data.data.sequence_variants_summary);
-          }
-          
-          // Show console notice
-          console.log('\n🚀 ENHANCED FEATURES ACTIVE:');
-          console.log('   • Enhanced thread fetching for Email Outreach - New Method');
-          console.log('   • Variant analysis using established methodology');
-          console.log('   • Sequence variants summary for database population');
-          console.log('   • Complete referential integrity with database schema');
-          console.log('\n📖 Check the console output above for detailed debug information');
-          
-          // Save results to WorkerDataService for dashboard auto-refresh
-          try {
-            console.log('💾 Saving attribution results to WorkerDataService...');
-            console.log('🔍 Data structure check before saving:', {
-              hasAttributedClientsData: !!event.data.data.attributed_clients_data,
-              attributedClientsCount: event.data.data.attributed_clients_data?.length || 0,
-              hasAttributionBreakdown: !!event.data.data.attribution_breakdown,
-              hasRevenueBreakdown: !!event.data.data.revenue_breakdown,
-              hasDataSourcesSummary: !!event.data.data.data_sources_summary,
-              totalClients: event.data.data.total_clients,
-              attributedClients: event.data.data.attributed_clients
-            });
-            
-            workerDataService.saveToLocalStorage(event.data.data);
-            console.log('✅ Attribution results saved successfully - dashboard will auto-refresh');
-          } catch (error) {
-            console.error('❌ Failed to save attribution results to WorkerDataService:', error);
-          }
-          
-          onComplete({
-            processedData: compiledData,
-            attributionResults: event.data.data,
-            summary: event.data.summary
-          });
+          // Save to Supabase
+          saveToSupabase(event.data.data);
         } else if (event.data.type === 'ERROR') {
           clearTimeout(workerTimeout);
           console.error('Worker error:', event.data.data);
