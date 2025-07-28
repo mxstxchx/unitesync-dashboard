@@ -76,16 +76,25 @@ class SupabaseDataService {
       // Transform client attributions back to the expected format
       const attributed_clients_data = clientAttributions.map(client => ({
         email: client.client_email,
-        pipeline: client.attribution_source, // Maps to attribution_source
+        attribution_source: client.attribution_source || null, // Explicitly handle null values
+        pipeline: client.attribution_source || null, // Also map to pipeline for backward compatibility
         confidence_score: parseFloat(client.attribution_confidence || '0'), // Maps to attribution_confidence
         attribution_details: client.attribution_details || {},
         revenue_amount: parseFloat(client.revenue || '0'), // Maps to revenue
         signup_date: client.created_at, // Use created_at as signup_date
         status: client.status, // Include status
-        attribution_method: client.attribution_method // Include attribution method
+        attribution_method: client.attribution_method || null // Handle null attribution method
       }));
 
       console.log('✅ Fetched', attributed_clients_data.length, 'client attributions from Supabase');
+      
+      // Debug: Check first few transformed records
+      console.log('🔍 Sample transformed client data:', attributed_clients_data.slice(0, 3));
+      
+      // Debug: Count attributed vs unattributed after transformation
+      const transformedAttributed = attributed_clients_data.filter(c => c.attribution_source).length;
+      const transformedUnattributed = attributed_clients_data.filter(c => !c.attribution_source).length;
+      console.log(`🔍 After transformation: ${transformedAttributed} attributed, ${transformedUnattributed} unattributed`);
 
       // Transform the database record back to the expected AttributionReport format
       const attributionReport = {
