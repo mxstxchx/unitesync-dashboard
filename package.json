@@ -13,6 +13,7 @@
     "@types/lodash": "^4.17.20",
     "@types/papaparse": "^5.3.16",
     "date-fns": "^4.1.0",
+    "jose": "^6.0.12",
     "lodash": "^4.17.21",
     "next": "15.4.1",
     "papaparse": "^5.5.3",

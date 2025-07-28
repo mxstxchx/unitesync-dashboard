@@ -6,31 +6,10 @@ interface PasswordWallProps {
   children: React.ReactNode;
 }
 
-// Get user credentials from environment variables
-const getValidCredentials = () => {
-  const credentials: Record<string, string> = {};
-  
-  // Only add users if both email and password are configured
-  if (process.env.NEXT_PUBLIC_ADMIN_EMAIL && process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-    credentials[`${process.env.NEXT_PUBLIC_ADMIN_EMAIL}:${process.env.NEXT_PUBLIC_ADMIN_PASSWORD}`] = 'Admin User';
-  }
-  
-  if (process.env.NEXT_PUBLIC_SALES_EMAIL && process.env.NEXT_PUBLIC_SALES_PASSWORD) {
-    credentials[`${process.env.NEXT_PUBLIC_SALES_EMAIL}:${process.env.NEXT_PUBLIC_SALES_PASSWORD}`] = 'Sales User';
-  }
-  
-  if (process.env.NEXT_PUBLIC_ANALYST_EMAIL && process.env.NEXT_PUBLIC_ANALYST_PASSWORD) {
-    credentials[`${process.env.NEXT_PUBLIC_ANALYST_EMAIL}:${process.env.NEXT_PUBLIC_ANALYST_PASSWORD}`] = 'Analyst User';
-  }
-  
-  return credentials;
-};
-
-// Check if authentication is properly configured
-const isAuthConfigured = () => {
-  const credentials = getValidCredentials();
-  return Object.keys(credentials).length > 0;
-};
+interface User {
+  email: string;
+  role: string;
+}
 
 export default function PasswordWall({ children }: PasswordWallProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -38,41 +17,86 @@ export default function PasswordWall({ children }: PasswordWallProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [authConfigured, setAuthConfigured] = useState(true);
 
   useEffect(() => {
-    // Check if user is already authenticated
-    const authStatus = sessionStorage.getItem('unitesync_auth');
-    if (authStatus === 'authenticated') {
-      setIsAuthenticated(true);
-    }
-    setLoading(false);
+    const checkAuth = async () => {
+      try {
+        // Check if authentication is configured
+        const configResponse = await fetch('/api/auth/login');
+        const configData = await configResponse.json();
+        
+        if (!configData.configured) {
+          setAuthConfigured(false);
+          setLoading(false);
+          return;
+        }
+
+        // Check if user is already authenticated
+        const verifyResponse = await fetch('/api/auth/verify');
+        const verifyData = await verifyResponse.json();
+        
+        if (verifyData.authenticated && verifyData.user) {
+          setIsAuthenticated(true);
+          setUser(verifyData.user);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     
-    const validCredentials = getValidCredentials();
-    const credentialKey = `${email.trim()}:${password}`;
-    
-    if (validCredentials[credentialKey]) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('unitesync_auth', 'authenticated');
-      sessionStorage.setItem('unitesync_user', validCredentials[credentialKey]);
-      sessionStorage.setItem('unitesync_email', email.trim());
-      setError('');
-    } else {
-      setError('Invalid email or password. Please try again.');
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setIsAuthenticated(true);
+        setUser(data.user);
+        setError('');
+      } else {
+        setError(data.error || 'Invalid email or password. Please try again.');
+        setPassword('');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('Login failed. Please try again.');
       setPassword('');
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    sessionStorage.removeItem('unitesync_auth');
-    sessionStorage.removeItem('unitesync_user');
-    sessionStorage.removeItem('unitesync_email');
-    setEmail('');
-    setPassword('');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsAuthenticated(false);
+      setUser(null);
+      setEmail('');
+      setPassword('');
+    }
   };
 
   if (loading) {
@@ -84,7 +108,7 @@ export default function PasswordWall({ children }: PasswordWallProps) {
   }
 
   // Check if authentication is properly configured
-  if (!isAuthConfigured()) {
+  if (!authConfigured) {
     return (
       <div className="min-h-screen bg-red-50 flex items-center justify-center">
         <div className="max-w-md w-full space-y-8 p-8">
@@ -100,12 +124,13 @@ export default function PasswordWall({ children }: PasswordWallProps) {
           <div className="bg-red-100 border border-red-300 rounded-lg p-4">
             <h3 className="font-semibold text-red-800 mb-2">Required Environment Variables:</h3>
             <div className="text-sm text-red-700 space-y-1">
-              <p>• NEXT_PUBLIC_ADMIN_EMAIL</p>
-              <p>• NEXT_PUBLIC_ADMIN_PASSWORD</p>
-              <p>• NEXT_PUBLIC_SALES_EMAIL</p>
-              <p>• NEXT_PUBLIC_SALES_PASSWORD</p>
-              <p>• NEXT_PUBLIC_ANALYST_EMAIL</p>
-              <p>• NEXT_PUBLIC_ANALYST_PASSWORD</p>
+              <p>• ADMIN_EMAIL</p>
+              <p>• ADMIN_PASSWORD</p>
+              <p>• SALES_EMAIL</p>
+              <p>• SALES_PASSWORD</p>
+              <p>• ANALYST_EMAIL</p>
+              <p>• ANALYST_PASSWORD</p>
+              <p>• JWT_SECRET</p>
             </div>
           </div>
           
@@ -192,7 +217,7 @@ export default function PasswordWall({ children }: PasswordWallProps) {
       <div className="bg-white border-b border-gray-200 px-4 py-2">
         <div className="flex justify-between items-center">
           <div className="text-sm text-gray-600">
-            Welcome, {sessionStorage.getItem('unitesync_email')} ({sessionStorage.getItem('unitesync_user')})
+            Welcome, {user?.email} ({user?.role})
           </div>
           <button
             onClick={handleLogout}
