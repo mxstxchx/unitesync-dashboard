@@ -1,6 +1,103 @@
 // Invitation-First Attribution Worker - Correct Implementation
 // Implements invitation-code-first attribution with timing validation
 
+// Import Supabase for data persistence
+importScripts('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js');
+
+// Global Supabase client (will be initialized when config is received)
+let supabaseClient = null;
+
+// Supabase data persistence functions
+const SupabaseUtils = {
+  // Initialize Supabase client with provided config
+  initializeClient(config) {
+    if (!config.url || !config.anonKey) {
+      throw new Error('Supabase URL and anon key are required');
+    }
+    supabaseClient = supabase.createClient(config.url, config.anonKey);
+    console.log('✅ Supabase client initialized in worker');
+  },
+
+  // Save attribution report to Supabase
+  async saveAttributionReport(reportData) {
+    if (!supabaseClient) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    console.log('💾 Saving attribution report to Supabase...');
+    
+    try {
+      // Save main attribution report
+      const { data: reportRecord, error: reportError } = await supabaseClient
+        .from('attribution_reports')
+        .insert({
+          report_data: reportData,
+          generated_at: new Date().toISOString(),
+          total_clients: reportData.summary?.total_clients || 0,
+          attributed_clients: reportData.summary?.attributed_clients || 0,
+          attribution_rate: reportData.summary?.attribution_rate || 0
+        })
+        .select()
+        .single();
+
+      if (reportError) {
+        throw new Error(`Failed to save attribution report: ${reportError.message}`);
+      }
+
+      console.log('✅ Attribution report saved with ID:', reportRecord.id);
+
+      // Save individual client attributions
+      if (reportData.clients && reportData.clients.length > 0) {
+        const clientRecords = reportData.clients.map(client => ({
+          report_id: reportRecord.id,
+          client_email: client.email,
+          pipeline: client.pipeline,
+          confidence_score: client.confidence_score,
+          attribution_details: client.attribution_details,
+          revenue_amount: client.revenue || 0,
+          signup_date: client.date_added
+        }));
+
+        const { error: clientsError } = await supabaseClient
+          .from('client_attributions')
+          .insert(clientRecords);
+
+        if (clientsError) {
+          console.error('❌ Failed to save client attributions:', clientsError.message);
+        } else {
+          console.log('✅ Saved', clientRecords.length, 'client attributions');
+        }
+      }
+
+      // Save data source summary
+      if (reportData.summary?.sources) {
+        const sourceRecords = Object.entries(reportData.summary.sources).map(([source, data]) => ({
+          report_id: reportRecord.id,
+          source_name: source,
+          total_count: data.total || 0,
+          attributed_count: data.attributed || 0,
+          attribution_rate: data.rate || 0
+        }));
+
+        const { error: sourcesError } = await supabaseClient
+          .from('data_source_summaries')
+          .insert(sourceRecords);
+
+        if (sourcesError) {
+          console.error('❌ Failed to save data source summaries:', sourcesError.message);
+        } else {
+          console.log('✅ Saved', sourceRecords.length, 'data source summaries');
+        }
+      }
+
+      return reportRecord.id;
+    } catch (error) {
+      console.error('❌ Error saving to Supabase:', error);
+      throw error;
+    }
+  }
+};
+
 // Core attribution utility functions
 const AttributionUtils = {
   // Extract invitation code from report links (both UUID and non-UUID formats)
@@ -3002,11 +3099,20 @@ class ConfidenceBasedAttributionProcessor {
 
 // Worker message handler
 self.onmessage = async function(e) {
-  const { type, data } = e.data;
+  const { type, data, supabaseConfig } = e.data;
   
-  console.log('Worker received message:', { type, dataKeys: Object.keys(data || {}) });
+  console.log('Worker received message:', { type, dataKeys: Object.keys(data || {}), hasSupabaseConfig: !!supabaseConfig });
   
   try {
+    // Initialize Supabase if config is provided
+    if (supabaseConfig) {
+      try {
+        SupabaseUtils.initializeClient(supabaseConfig);
+      } catch (supabaseError) {
+        console.warn('⚠️ Failed to initialize Supabase in worker:', supabaseError.message);
+      }
+    }
+
     switch (type) {
       case 'PROCESS_ATTRIBUTION':
         console.log('Starting confidence-based attribution processing...');
@@ -3024,6 +3130,29 @@ self.onmessage = async function(e) {
         // Process attribution with confidence-based approach
         console.log('Processing attribution with confidence-based approach');
         const result = await processor.processAttribution(data);
+        
+        // Save to Supabase if client is initialized
+        if (supabaseClient) {
+          try {
+            self.postMessage({
+              type: 'PROGRESS',
+              data: { message: 'Saving to Supabase...', progress: 95 }
+            });
+            
+            const supabaseReportId = await SupabaseUtils.saveAttributionReport(result);
+            
+            // Add Supabase report ID to result
+            result.supabase_report_id = supabaseReportId;
+            
+            console.log('✅ Successfully saved to Supabase with ID:', supabaseReportId);
+          } catch (supabaseError) {
+            console.error('❌ Failed to save to Supabase:', supabaseError.message);
+            // Continue without failing - local file will still be saved
+            result.supabase_error = supabaseError.message;
+          }
+        } else {
+          console.log('ℹ️ Supabase not configured, skipping database save');
+        }
         
         console.log('Attribution complete, sending result');
         self.postMessage({

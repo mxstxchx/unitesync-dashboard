@@ -2,6 +2,7 @@ import { workerDataService } from '@/services/workerDataService'
 
 /**
  * Utility function to ensure worker data is loaded before dashboard components can access it
+ * Uses hybrid approach: Supabase first, then localStorage, then file system fallback
  */
 export async function ensureWorkerDataLoaded(): Promise<void> {
   // Check if worker data is already available
@@ -9,15 +10,15 @@ export async function ensureWorkerDataLoaded(): Promise<void> {
     return
   }
 
-  // Try localStorage first (fastest)
+  // Try hybrid sources (Supabase first, then localStorage fallback)
   try {
-    await workerDataService.loadFromLocalStorage()
+    await workerDataService.loadFromHybridSources()
     return
-  } catch (localStorageError) {
-    console.log('📁 No data in localStorage, checking file system...')
+  } catch (hybridError) {
+    console.log('📁 Hybrid sources failed, trying file system fallback...', hybridError)
   }
 
-  // Fall back to file system (project persistence)
+  // Final fallback to file system (project persistence) - for development
   try {
     await workerDataService.loadFromFileSystem()
     return

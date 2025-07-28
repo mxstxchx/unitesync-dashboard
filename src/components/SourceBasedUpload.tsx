@@ -373,9 +373,16 @@ export default function SourceBasedUpload({ onComplete }: SourceBasedUploadProps
         setIsProcessing(false);
       }, 900000); // 15 minutes timeout for sequential processing with delays
       
+      // Get Supabase configuration from environment
+      const supabaseConfig = {
+        url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      };
+
       worker.postMessage({
         type: 'PROCESS_ATTRIBUTION',
-        data: compiledData
+        data: compiledData,
+        supabaseConfig: supabaseConfig
       });
 
       worker.onmessage = (event) => {

@@ -5,6 +5,7 @@
  */
 
 import { reportStorageService } from './reportStorageService'
+import { supabaseDataService } from './supabaseDataService'
 
 export interface AttributionReport {
   processing_date: string;
@@ -297,6 +298,43 @@ export class WorkerDataService {
       console.log('✅ Attribution report loaded from smart storage');
     } catch (error) {
       throw new Error(`Failed to load attribution report: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Load attribution report from Supabase database
+   */
+  async loadFromSupabase(): Promise<void> {
+    try {
+      const reportData = await supabaseDataService.getLatestReport();
+      if (!reportData) {
+        throw new Error('No attribution reports found in Supabase');
+      }
+      await this.loadAttributionReport(reportData);
+      console.log('✅ Attribution report loaded from Supabase');
+    } catch (error) {
+      throw new Error(`Failed to load attribution report from Supabase: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Load attribution report using hybrid approach (Supabase first, then fallback to localStorage)
+   */
+  async loadFromHybridSources(): Promise<void> {
+    try {
+      // First try Supabase
+      console.log('🔄 Attempting to load from Supabase...');
+      await this.loadFromSupabase();
+    } catch (supabaseError) {
+      console.warn('⚠️ Supabase load failed, falling back to local storage:', supabaseError);
+      try {
+        // Fallback to local storage
+        await this.loadFromLocalStorage();
+        console.log('✅ Successfully loaded from local storage fallback');
+      } catch (localError) {
+        console.error('❌ Both Supabase and local storage failed');
+        throw new Error(`Failed to load from both sources: Supabase (${supabaseError}), Local (${localError})`);
+      }
     }
   }
 
