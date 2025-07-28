@@ -73,18 +73,30 @@ class SupabaseDataService {
       console.log('📡 Fetching client attributions for report:', reportRecord.id);
       const clientAttributions = await this.getClientAttributions(reportRecord.id);
       
-      // Transform client attributions back to the expected format
-      const attributed_clients_data = clientAttributions.map(client => ({
-        email: client.client_email,
-        attribution_source: client.attribution_source || null, // Explicitly handle null values
-        pipeline: client.attribution_source || null, // Also map to pipeline for backward compatibility
-        confidence_score: parseFloat(client.attribution_confidence || '0'), // Maps to attribution_confidence
-        attribution_details: client.attribution_details || {},
-        revenue_amount: parseFloat(client.revenue || '0'), // Maps to revenue
-        signup_date: client.created_at, // Use created_at as signup_date
-        status: client.status, // Include status
-        attribution_method: client.attribution_method || null // Handle null attribution method
-      }));
+      // Transform client attributions back to the expected format (must match AttributedClient interface)
+      const attributed_clients_data = clientAttributions.map(client => {
+        // Extract the actual contact/signup date from attribution_details for time series analysis
+        const actualSignupDate = client.attribution_details?.contacted_date || 
+                                client.attribution_details?.match_data?.stat?.Contacted_date ||
+                                client.attribution_details?.match_data?.stat?.Replied_date ||
+                                client.created_at; // Fallback to database created_at
+
+        return {
+          email: client.client_email,
+          status: client.status,
+          revenue: client.revenue || '0', // Keep as string (dashboard expects string)
+          created_at: actualSignupDate, // Use actual historical date for time series
+          attribution_source: client.attribution_source || null,
+          attribution_method: client.attribution_method || null,
+          attribution_confidence: parseFloat(client.attribution_confidence || '0'), // Dashboard expects this exact field name
+          attribution_details: client.attribution_details || {},
+          // Legacy field mappings for backward compatibility
+          pipeline: client.attribution_source || null,
+          confidence_score: parseFloat(client.attribution_confidence || '0'),
+          revenue_amount: parseFloat(client.revenue || '0'),
+          signup_date: actualSignupDate
+        };
+      });
 
       console.log('✅ Fetched', attributed_clients_data.length, 'client attributions from Supabase');
       
@@ -95,6 +107,14 @@ class SupabaseDataService {
       const transformedAttributed = attributed_clients_data.filter(c => c.attribution_source).length;
       const transformedUnattributed = attributed_clients_data.filter(c => !c.attribution_source).length;
       console.log(`🔍 After transformation: ${transformedAttributed} attributed, ${transformedUnattributed} unattributed`);
+
+      // Debug: Check date extraction
+      const sampleDates = attributed_clients_data.slice(0, 5).map(c => ({
+        email: c.email,
+        created_at: c.created_at,
+        revenue: c.revenue
+      }));
+      console.log('🔍 Sample dates and revenue after transformation:', sampleDates);
 
       // Transform the database record back to the expected AttributionReport format
       const attributionReport = {
